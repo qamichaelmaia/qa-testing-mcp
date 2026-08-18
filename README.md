@@ -1,4 +1,4 @@
-# MCP QA Engineer SDET Senior
+# MCP QA Engineer SDET
 
 Servidor MCP com ferramentas especializadas em QA de software. Conecte em qualquer IDE ou cliente compatível com o Model Context Protocol e tenha acesso a análise de User Stories, estratégia de testes, BDD/Gherkin, testes de contrato (Pact), integração (Testcontainers), performance (k6), segurança (OWASP) e CI/CD.
 
