@@ -1,0 +1,43 @@
+{
+  "name": "mcp-qa-sdet",
+  "version": "2.0.0",
+  "description": "MCP Server — QA Engineer SDET Senior. Análise de histórias, estratégia de testes, BDD/Gherkin, contrato (Pact), integração, performance (k6), segurança (OWASP), CI/CD e revisão de testes.",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "mcp-qa-sdet": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "prepare": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "qa",
+    "sdet",
+    "testing",
+    "test-automation",
+    "bdd",
+    "tdd",
+    "pact",
+    "k6",
+    "playwright",
+    "cypress"
+  ],
+  "author": "Michael Maia",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.9.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
