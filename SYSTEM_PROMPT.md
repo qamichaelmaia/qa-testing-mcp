@@ -226,6 +226,82 @@ ARQUITETURA DE TESTES
 - Roadmap priorizado
 ```
 
+### Artefatos de testes manuais
+
+Quando executar, documentar ou atualizar testes manuais, use sempre esta estrutura relativa à raiz do projeto:
+
+```text
+qa-artifacts/
+	manual-tests/
+		US-001-gerenciar-contatos-financeiros/
+			US-001-gerenciar-contatos-financeiros.md
+			evidencias/       # screenshots, vídeos, exports e logs da história
+```
+
+Não crie resultados de testes manuais na raiz do projeto. Cada User Story deve ter uma única pasta e um único arquivo Markdown de documentação. Não crie arquivos Markdown separados para casos de teste, bugs ou ajustes da mesma história.
+
+Padrão obrigatório:
+
+| Elemento | Padrão |
+|---|---|
+| Pasta | `US-<ID>-<slug-da-historia>/` |
+| Documento | `US-<ID>-<slug-da-historia>.md` |
+| Primeiro título | `# [US-<ID>] <Título da User Story>` |
+| Caso de teste | Seção `## Caso de teste` dentro do documento |
+| Bugs | Subseções `### BUG-01 — <Título>` dentro de `## Bugs encontrados` |
+| Ajustes | Subseções `### AJU-01 — <Título>` dentro de `## Ajustes encontrados` |
+| Evidência | `evidencias/<tipo>-<descrição>.<ext>` dentro da pasta da história |
+
+Regras de nomenclatura:
+
+- Use um ID único e sequencial para cada User Story; os IDs de bugs e ajustes são sequenciais apenas dentro do documento da história.
+- Use slug em minúsculas, sem acentos, com palavras separadas por hífen.
+- O slug deve identificar a User Story. Exemplo: `US-001-alterar-metodo-de-pagamento/US-001-alterar-metodo-de-pagamento.md`.
+- O título da User Story e o campo `## Objetivo do teste` devem expressar o objetivo em linguagem legível.
+- Para uma execução, registre status, data, ambiente, pré-condições, passos, resultado esperado, resultado obtido, evidências e vínculo com requisito no mesmo documento da história.
+- Ao identificar um defeito, registre-o em `## Bugs encontrados`; ao identificar uma melhoria ou correção necessária, registre-a em `## Ajustes encontrados`.
+
+Template obrigatório por User Story:
+
+```markdown
+# [US-001] Alterar método de pagamento
+
+## Objetivo do teste
+Confirmar que o usuário consegue trocar o método de pagamento com dados válidos.
+
+- **História:** US-001
+- **Data:** YYYY-MM-DD
+- **Ambiente:** staging
+- **Status:** Aprovado | Reprovado | Bloqueado
+
+## Pré-condições
+...
+
+## Passos e resultados
+...
+
+## Bugs encontrados
+
+### BUG-01 — Título curto e objetivo do defeito
+
+- **Severidade:** Alta | Média | Baixa
+- **Status:** Aberto | Corrigido | Validado
+- **Passos para reproduzir:** ...
+- **Resultado esperado:** ...
+- **Resultado obtido:** ...
+
+## Ajustes encontrados
+
+### AJU-01 — Título curto do ajuste
+
+- **Prioridade:** Alta | Média | Baixa
+- **Status:** Aberto | Aplicado | Validado
+- **Descrição:** ...
+
+## Evidências
+- `qa-artifacts/manual-tests/US-001-alterar-metodo-de-pagamento/evidencias/screenshot-01.png`
+```
+
 ## Checklist antes de entregar
 
 - [ ] Todos os critérios de aceitação estão cobertos?
@@ -238,6 +314,9 @@ ARQUITETURA DE TESTES
 - [ ] Timeouts, retries, concorrência e limpeza estão definidos?
 - [ ] CI/CD gera artefatos e falha pelos motivos corretos?
 - [ ] Riscos residuais, perguntas e hipóteses foram explicitados?
+- [ ] Existe uma única pasta por User Story?
+- [ ] Casos, bugs e ajustes da história estão no mesmo arquivo Markdown?
+- [ ] O arquivo tem ID, título padronizado e `## Objetivo do teste`?
 
 ## Modos de operação
 

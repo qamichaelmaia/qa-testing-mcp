@@ -50,6 +50,40 @@ npm run dev   # usa tsx — não requer compilação
 | `troubleshoot_flaky_test` | Diagnóstico de flaky tests: hipóteses, passos, correções com código, política de prevenção |
 | `generate_ci_pipeline` | Pipeline CI/CD com stages, paralelismo, cache, cobertura mínima, gates de qualidade |
 | `quality_checklist` | Checklists por artefato: user story, plano, caso de teste, código, contrato, suíte, bug report |
+| `generate_test_data` | Dados de teste sintéticos: válidos, inválidos, boundary, ausentes, PII mascarada, por categoria |
+| `design_api_tests` | Testes funcionais, negativos e de segurança (OWASP API Top 10) para um endpoint específico |
+| `generate_automation_code` | Scaffold de código de automação com boas práticas (seletores resilientes, waits, isolamento) |
+| `optimize_test_suite` | Matriz de decisão para manter/mesclar/remover testes e priorização por risco |
+| `self_healing_test_strategy` | Hierarquia de seletores, fallback chain e detecção de drift para automação resiliente |
+| `manual_test_artifact_standard` | Define uma pasta e um único arquivo por User Story, com caso de teste, bugs, ajustes e evidências no mesmo documento |
+
+### Padrão de artefatos manuais
+
+Resultados de testes manuais devem ser criados em uma pasta por User Story, nunca na raiz:
+
+```text
+qa-artifacts/manual-tests/
+  US-001-gerenciar-contatos-financeiros/
+    US-001-gerenciar-contatos-financeiros.md
+    evidencias/
+```
+
+Use o formato `US-001-<slug-da-historia>/US-001-<slug-da-historia>.md`. O arquivo deve conter `## Objetivo do teste`, `## Caso de teste`, `## Bugs encontrados` e `## Ajustes encontrados`. Bugs e ajustes são subseções do mesmo documento, e não arquivos separados. A tool `manual_test_artifact_standard` retorna o caminho, o nome e o template correto para cada nova User Story.
+
+### Mapeamento com categorias de "agentes de IA para QA"
+
+| Categoria | Cobertura no MCP |
+|-----------|-------------------|
+| AI Test Case Generation | `analyze_user_story`, `create_gherkin_scenarios` |
+| AI Test Case Optimization | `optimize_test_suite` |
+| AI-Assisted Automation Coding | `generate_automation_code`, `review_test_code` |
+| AI Test Data Generation | `generate_test_data` |
+| AI API Testing | `design_api_tests`, `design_contract_tests` |
+| AI Test Failure Analysis | `troubleshoot_flaky_test` |
+| QA Workflow Automation | `generate_ci_pipeline`, `generate_test_strategy` |
+| AI Risk-Based Testing | `analyze_user_story` (mapa de riscos), `generate_test_strategy` |
+| Self-Healing Test Automation | `self_healing_test_strategy` |
+| Autonomous QA Agent | prompt `autonomous-qa-agent` (orquestra todas as tools acima em sequência) |
 
 ## Recursos disponíveis (resources)
 
@@ -69,6 +103,7 @@ npm run dev   # usa tsx — não requer compilação
 | `start-tdd` | Sessão TDD guiada (Red → Green → Refactor) |
 | `write-test-plan` | Elaboração de plano de testes |
 | `debug-failure` | Diagnóstico de falha em teste ou ambiente |
+| `autonomous-qa-agent` | Orquestra todas as tools em sequência: história → estratégia → dados → API → automação → CI |
 
 ---
 

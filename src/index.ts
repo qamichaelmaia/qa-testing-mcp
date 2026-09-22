@@ -14,7 +14,7 @@ import {
 // ─── Server ───────────────────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: "mcp-qa-sdet", version: "2.0.0" },
+  { name: "mcp-qa-sdet", version: "2.1.0" },
   { capabilities: { tools: {}, resources: {}, prompts: {} } }
 );
 
@@ -2041,6 +2041,449 @@ ${lowItems.map((i) => `- [ ] ${i[0]}`).join("\n")}`
 ${content ? `Revise o artefato fornecido e marque cada item. Aponte especificamente onde cada problema foi identificado.` : `Use esta lista para avaliar o artefato **${checklist.title}** antes de considerá-lo pronto.`}`;
 }
 
+function generateTestData(args: Record<string, unknown>): string {
+  const fields = str(args.fields);
+  const domain = optStr(args.domain) ?? "genérico";
+  const format = optStr(args.format) ?? "JSON";
+  const count = optStr(args.count) ?? "10";
+  const constraints = optStr(args.constraints);
+
+  return `# Geração de Dados de Teste
+
+## Entrada recebida
+- **Campos:** ${fields}
+- **Domínio:** ${domain}
+- **Formato de saída:** ${format}
+- **Quantidade por categoria:** ${count}
+${constraints ? `- **Restrições:** ${constraints}` : ""}
+
+---
+
+## 1. Categorias de dados a gerar
+
+| Categoria | Objetivo | Exemplo de regra |
+|-----------|----------|-------------------|
+| Válido canônico | Representa o caso comum, bem formado | Todos os campos preenchidos dentro das regras |
+| Válido variado | Cobre variações aceitas (formatos alternativos, opcionais ausentes) | Telefone com/sem DDI, nome com acento |
+| Inválido por campo | Um campo inválido por vez, demais válidos | Email sem "@", CPF com dígito verificador errado |
+| Ausente/nulo | Campo obrigatório nulo, vazio ou não enviado | \`null\`, \`""\`, campo omitido do payload |
+| Boundary | Limite mínimo, máximo e ±1 de cada campo numérico/string | 0, 1, MAX-1, MAX, MAX+1 |
+| Caracteres especiais | Unicode, emojis, HTML/SQL, espaços | \`<script>\`, \`' OR 1=1\`, \`café\`, \`🎯\`, \`   \` |
+| Duplicado | Mesmo valor de campo único (email, CPF, SKU) em dois registros | Testa constraint de unicidade |
+| Sensível/PII | Dados pessoais para testar mascaramento e LGPD/GDPR | CPF, email, cartão — sempre sintéticos, nunca reais |
+| Volume | Dataset grande para performance/paginação | 10k+ registros com distribuição realista |
+
+---
+
+## 2. Estratégia de geração
+
+1. **Nunca use dados reais de produção.** Gere sintéticos ou anonimize com hashing irreversível.
+2. Use uma biblioteca de fake data determinística com seed fixo para reprodutibilidade (ex.: \`faker.seed(42)\`).
+3. Para campos com regra de negócio (CPF, cartão, CEP), use gerador que respeita o algoritmo de validação (dígito verificador), não apenas o formato.
+4. Para dados relacionais, gere na ordem de dependência (ex.: cliente antes de pedido) e reutilize IDs.
+5. Versione datasets de teste junto ao código quando forem fixtures estáveis; gere dinamicamente quando o teste precisar de dados únicos por execução.
+
+## 3. Exemplo de geração (ajuste os campos reais)
+
+\`\`\`${format.toLowerCase() === "csv" ? "text" : "json"}
+${
+  format.toLowerCase() === "csv"
+    ? `${fields || "campo1,campo2,campo3"}\nvalor_valido_1,valor_valido_2,valor_valido_3\n,valor_ausente,valor_valido`
+    : `{\n  "valido_canonico": { ${fields ? `/* ${fields} preenchidos conforme regra */` : "/* campos preenchidos */"} },\n  "invalido_campo_x": { /* um campo inválido isolado */ },\n  "ausente": { /* campo obrigatório omitido */ },\n  "boundary_min": { /* valor mínimo aceito */ },\n  "boundary_max_mais_1": { /* valor acima do máximo, deve ser rejeitado */ }\n}`
+}
+\`\`\`
+
+## 4. Ferramentas recomendadas por stack
+
+| Stack | Biblioteca |
+|-------|-----------|
+| JavaScript/TypeScript | \`@faker-js/faker\`, \`test-data-bot\` |
+| Python | \`Faker\`, \`factory_boy\`, \`hypothesis\` (property-based) |
+| Java | \`Instancio\`, \`JavaFaker\`, \`EasyRandom\` |
+| Banco de dados | \`pgbench\` (volume), scripts SQL com \`generate_series\` |
+
+## 5. Checklist
+
+- [ ] Nenhum dado real ou identificável usado
+- [ ] Cada categoria (válido, inválido, boundary, ausente, especial) representada
+- [ ] Dados sensíveis mascarados ou sintéticos com formato válido
+- [ ] Seed fixo definido para reprodutibilidade
+- [ ] Volume suficiente para teste de performance, se aplicável
+- [ ] Dataset versionado ou gerado sob demanda conforme necessidade do teste`;
+}
+
+function designApiTests(args: Record<string, unknown>): string {
+  const endpoint = str(args.endpoint);
+  const method = optStr(args.method) ?? "GET";
+  const authType = optStr(args.auth_type) ?? "não especificado";
+  const requestSchema = optStr(args.request_schema);
+  const apiStyle = optStr(args.api_style) ?? "REST";
+
+  return `# Design de Testes de API
+
+## Entrada recebida
+- **Endpoint:** \`${method} ${endpoint}\`
+- **Estilo:** ${apiStyle}
+- **Autenticação:** ${authType}
+${requestSchema ? `- **Schema de request:** fornecido (${requestSchema.length} chars)` : ""}
+
+> Nota: este tool cobre testes **funcionais e de abuso** da API. Para compatibilidade entre consumer/provider, use \`design_contract_tests\`.
+
+---
+
+## 1. Casos funcionais
+
+| Caso | Verificação |
+|------|-------------|
+| Happy path | Status 2xx, schema de resposta correto, campos obrigatórios presentes |
+| Paginação | \`limit\`/\`offset\` ou cursor respeitados, total consistente, última página vazia |
+| Filtros e ordenação | Combinações de query params, filtro inexistente retorna vazio (não erro) |
+| Campos opcionais ausentes | Resposta usa default documentado, não quebra |
+| Content negotiation | \`Accept\`/\`Content-Type\` corretos, 406/415 quando inválido |
+| Idempotência (PUT/DELETE) | Repetir a mesma chamada produz o mesmo resultado final |
+| Versionamento | Endpoint versionado responde conforme contrato daquela versão |
+
+## 2. Casos negativos
+
+| Caso | Resultado esperado |
+|------|---------------------|
+| Payload malformado (JSON inválido) | 400 com mensagem clara, sem stack trace |
+| Campo obrigatório ausente | 400 com nome do campo específico |
+| Tipo de dado incorreto | 400, não 500 |
+| ID inexistente | 404, não 200 com corpo vazio |
+| Método não permitido | 405 com \`Allow\` header |
+| Timeout de dependência | 502/503/504 com mensagem, não 500 genérico |
+
+## 3. Casos de segurança (OWASP API Security Top 10)
+
+| Vetor | Teste |
+|-------|-------|
+| BOLA (Broken Object Level Authorization) | Usuário A tenta acessar/alterar recurso do usuário B pelo ID |
+| Broken Authentication | Token expirado, ausente, malformado ou de outro usuário |
+| Broken Object Property Level Authorization | Mass assignment — enviar campo que usuário não deveria alterar (ex.: \`role: admin\`) |
+| Unrestricted Resource Consumption | Rate limiting ausente, paginação sem limite máximo, payload gigante |
+| Broken Function Level Authorization | Usuário comum acessa endpoint administrativo |
+| SSRF | URL fornecida pelo cliente é usada em chamada server-side sem validação |
+| Injection | \`' OR 1=1--\`, operadores NoSQL (\`$gt\`, \`$where\`) em campos de filtro |
+| Excessive Data Exposure | Resposta contém campos internos/sensíveis não usados pelo client |
+| Security Misconfiguration | Headers ausentes (\`X-Content-Type-Options\`, CORS aberto demais), verbose errors |
+| Improper Inventory Management | Versões antigas da API (\`/v1/\`) ainda acessíveis sem aviso |
+
+## 4. Estrutura de teste sugerida
+
+\`\`\`typescript
+describe("${method} ${endpoint}", () => {
+  it("retorna 2xx e schema válido no caso feliz", async () => {
+    const res = await request(app).${method.toLowerCase()}("${endpoint}").set("Authorization", validToken);
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchSchema(responseSchema);
+  });
+
+  it("retorna 401 sem token", async () => {
+    const res = await request(app).${method.toLowerCase()}("${endpoint}");
+    expect(res.status).toBe(401);
+  });
+
+  it("retorna 403 ao acessar recurso de outro usuário (BOLA)", async () => {
+    const res = await request(app).${method.toLowerCase()}(\`${endpoint}\`).set("Authorization", tokenUserA).send({ /* id do recurso de userB */ });
+    expect(res.status).toBe(403);
+  });
+
+  it("rejeita payload com campo não permitido (mass assignment)", async () => {
+    const res = await request(app).${method.toLowerCase()}("${endpoint}").set("Authorization", validToken).send({ role: "admin" });
+    expect(res.status).toBe(400);
+  });
+});
+\`\`\`
+
+## 5. Checklist
+
+- [ ] Todos os status codes documentados têm teste correspondente
+- [ ] Autorização testada por objeto e por função (não só autenticação)
+- [ ] Rate limiting e tamanho de payload validados
+- [ ] Nenhum campo interno/sensível vaza na resposta
+- [ ] Erros não expõem stack trace ou detalhes de implementação`;
+}
+
+function generateAutomationCode(args: Record<string, unknown>): string {
+  const scenario = str(args.scenario);
+  const framework = optStr(args.framework) ?? "Playwright";
+  const language = optStr(args.language) ?? "TypeScript";
+  const layer = optStr(args.layer) ?? "e2e";
+
+  return `# Scaffold de Automação — ${framework} (${language})
+
+## Entrada recebida
+- **Cenário:** ${scenario}
+- **Camada:** ${layer}
+- **Framework:** ${framework}
+
+---
+
+## 1. Estrutura recomendada
+
+\`\`\`text
+tests/
+  ${layer}/
+    ${layer}.spec.ts        # casos de teste
+    fixtures.ts             # setup/teardown e dados reutilizáveis
+    page-objects/           # (apenas para UI) encapsula seletores e ações
+\`\`\`
+
+## 2. Scaffold gerado
+
+\`\`\`typescript
+import { test, expect } from "${framework.toLowerCase().includes("playwright") ? "@playwright/test" : "./fixtures"}";
+
+test.describe("${scenario || "Cenário"}", () => {
+  test.beforeEach(async ({ page }) => {
+    // Arrange: estado inicial isolado — nunca depender de execução anterior
+  });
+
+  test("happy path", async ({ page }) => {
+    // Given: precondição
+    // When: ação principal do cenário
+    // Then: resultado observável e verificável
+    // Priorize seletores estáveis: getByRole, getByTestId, getByLabel — evite CSS/XPath frágil
+    await expect(page.getByRole("button", { name: "Confirmar" })).toBeVisible();
+  });
+
+  test("caso negativo — entrada inválida", async ({ page }) => {
+    // Verificar mensagem de erro e que a ação não teve efeito colateral
+  });
+
+  test.afterEach(async ({ page }, testInfo) => {
+    if (testInfo.status !== testInfo.expectedStatus) {
+      await page.screenshot({ path: \`test-results/\${testInfo.title}-failure.png\` });
+    }
+  });
+});
+\`\`\`
+
+## 3. Boas práticas aplicadas ao scaffold
+
+- **Waits por condição**, nunca \`sleep\` fixo — use \`waitForSelector\`/\`toBeVisible\` com timeout explícito.
+- **Isolamento**: cada teste cria e limpa seu próprio estado (não reutiliza dados de outro teste).
+- **Seletores resilientes**: \`data-testid\`, role acessível ou label — evite depender de estrutura DOM ou classes de estilo.
+- **Diagnóstico automático**: screenshot/trace/vídeo em falha, anexado ao relatório.
+- **Retries limitados** apenas no nível de CI para falhas de infraestrutura, nunca para mascarar bugs.
+
+## 4. Próximos passos
+
+1. Substitua os comentários pelos passos reais do cenário: **${scenario}**.
+2. Extraia seletores repetidos para um Page Object ou fixture somente se usados em 2+ testes.
+3. Rode \`review_test_code\` neste arquivo antes de mergear para revisão de anti-patterns.
+4. Adicione o novo teste ao pipeline via \`generate_ci_pipeline\`.`;
+}
+
+function optimizeTestSuite(args: Record<string, unknown>): string {
+  const suiteDescription = str(args.suite_description);
+  const metrics = optStr(args.metrics);
+  const goal = optStr(args.goal) ?? "reduzir tempo de execução mantendo cobertura de risco";
+
+  return `# Otimização de Suíte de Testes
+
+## Entrada recebida
+- **Suíte:** ${suiteDescription}
+${metrics ? `- **Métricas fornecidas:** ${metrics}` : ""}
+- **Objetivo:** ${goal}
+
+---
+
+## 1. Matriz de decisão por teste
+
+Para cada teste da suíte, classifique e decida a ação:
+
+| Teste | Risco coberto | Duração | Taxa de flaky | Redundância | Ação |
+|-------|---------------|---------|----------------|-------------|------|
+| (preencher) | Alto/Médio/Baixo | segundos | % falhas não relacionadas a bug | duplica outro teste? | Manter / Mesclar / Mover de camada / Remover / Quarentena |
+
+Critérios de ação:
+- **Manter:** cobre risco único, rápido, estável.
+- **Mesclar:** dois testes verificam a mesma regra com dados diferentes — combine em teste parametrizado/Esquema do Cenário.
+- **Mover de camada:** cenário testado em E2E que poderia ser validado em unitário ou integração com o mesmo nível de confiança.
+- **Remover:** teste redundante, obsoleto, ou que testa comportamento já garantido por outro nível.
+- **Quarentena:** flaky não resolvido — não deve bloquear o pipeline até correção.
+
+## 2. Heurísticas de redundância
+
+1. Dois testes que diferem apenas no dado de entrada, mas exercitam a mesma regra → parametrizar em um único teste.
+2. Teste E2E que repete uma verificação já coberta por teste de integração ou unitário → manter só a camada mais barata que garante o mesmo risco.
+3. Testes com o mesmo *arrange* e *assert*, variando apenas passos intermediários não relevantes → consolidar.
+4. Cobertura de linha alta não implica ausência de redundância — meça por **risco coberto**, não por linha executada.
+
+## 3. Priorização (quando o tempo de execução é restrito)
+
+| Prioridade | Critério |
+|------------|----------|
+| P0 — sempre roda | Jornada crítica de negócio, dado protegido, ou requisito regulatório |
+| P1 — roda em todo PR | Regras de negócio centrais, integrações principais |
+| P2 — roda em pipeline agendado | Edge cases de baixo impacto, variações de UI |
+| P3 — candidato a remoção | Sem falha registrada em 6+ meses e sem relação com risco ativo |
+
+## 4. Plano de ação
+
+1. Rode a suíte com coleta de métricas (duração e taxa de falha por teste) por pelo menos 20 execuções.
+2. Aplique a matriz de decisão acima em cada teste.
+3. Priorize a paralelização de testes independentes antes de remover cobertura.
+4. Revalide a taxa de cobertura de risco (não de linha) após qualquer remoção.
+5. Documente toda remoção com o motivo e o teste substituto (se houver).
+
+## 5. Checklist
+
+- [ ] Nenhuma remoção reduziu cobertura de um risco P0/P1 sem substituto
+- [ ] Testes mesclados continuam cobrindo os mesmos boundary values
+- [ ] Suíte otimizada foi executada 10x sem regressão de resultado
+- [ ] Ganho de tempo medido e documentado (antes/depois)`;
+}
+
+function selfHealingTestStrategy(args: Record<string, unknown>): string {
+  const framework = optStr(args.framework) ?? "Playwright";
+  const failurePattern = optStr(args.failure_pattern);
+  const currentStrategy = optStr(args.current_locator_strategy);
+
+  return `# Estratégia de Automação Resiliente (Self-Healing)
+
+## Entrada recebida
+- **Framework:** ${framework}
+${currentStrategy ? `- **Estratégia atual de localização:** ${currentStrategy}` : ""}
+${failurePattern ? `- **Padrão de falha observado:** ${failurePattern}` : ""}
+
+---
+
+## 1. Hierarquia de seletores (do mais ao menos resiliente)
+
+1. \`data-testid\` / \`data-qa\` dedicado — imune a mudanças visuais e de texto
+2. Role acessível + nome (\`getByRole("button", { name: "Enviar" })\`) — resiliente e valida acessibilidade
+3. Label/placeholder associado a input
+4. Texto visível estável (evitar se traduzido/dinâmico)
+5. Estrutura DOM/CSS/XPath posicional — **último recurso**, quebra com qualquer refactor visual
+
+## 2. Fallback chain (auto-recuperação em runtime)
+
+\`\`\`typescript
+async function resilientLocate(page, primary: string, fallbacks: string[]) {
+  const candidates = [primary, ...fallbacks];
+  for (const selector of candidates) {
+    const locator = page.locator(selector);
+    if (await locator.count() > 0) return locator;
+  }
+  throw new Error(\`Nenhum seletor da cadeia resolveu: \${candidates.join(", ")}\`);
+}
+
+// uso: tenta data-testid, cai para role, depois texto
+const submitBtn = await resilientLocate(page, "[data-testid=submit]", ["role=button[name='Enviar']", "text=Enviar"]);
+\`\`\`
+
+## 3. Detecção de drift (mudança de UI)
+
+- Rode uma verificação periódica que reporta seletores que passaram a usar fallback (sinal de que o \`data-testid\` primário sumiu).
+- Registre toda ativação de fallback em log/telemetria com o nome do teste e o seletor que falhou — isso vira um backlog de manutenção proativa em vez de falha silenciosa.
+- Trate ativação de fallback como **warning no CI**, não falha — mas bloqueie o merge se o mesmo fallback for acionado repetidamente sem correção do \`data-testid\` original.
+
+## 4. Retry e espera resiliente
+
+\`\`\`typescript
+// Espera por condição, nunca por tempo fixo
+await expect(locator).toBeVisible({ timeout: 10_000 });
+
+// Retry apenas para falhas de infraestrutura conhecidas, nunca para mascarar bug de lógica
+test.describe.configure({ retries: process.env.CI ? 1 : 0 });
+\`\`\`
+
+## 5. Ferramentas de apoio a self-healing
+
+| Categoria | Ferramentas |
+|-----------|-------------|
+| Auto-wait nativo | Playwright, Cypress (aguardam elemento estar acionável antes de interagir) |
+| Comparação visual com tolerância | Applitools Eyes, Percy |
+| Self-healing comercial (heurística de similaridade de DOM) | Testim, Mabl, Healenium |
+| Diagnóstico em falha | Trace viewer (Playwright), vídeo/screenshot automático |
+
+> Ferramentas comerciais de self-healing reduzem manutenção, mas não substituem \`data-testid\` bem definidos — trate-as como rede de segurança, não como estratégia primária.
+
+## 6. Checklist
+
+- [ ] Todo elemento interativo crítico tem \`data-testid\` estável
+- [ ] Nenhum teste depende de XPath posicional ou classe CSS de estilo
+- [ ] Fallback chain define e registra quando é acionada
+- [ ] Waits são por condição observável, nunca \`sleep\` fixo
+- [ ] Ativação recorrente de fallback vira item de manutenção, não é ignorada`;
+}
+
+function manualTestArtifactStandard(args: Record<string, unknown>): string {
+  const storyId = str(args.story_id).toUpperCase() || "US-001";
+  const storyTitle = str(args.story_title) || "Título da User Story";
+  const slug = storyTitle
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "") || "user-story";
+  const folderName = `${storyId}-${slug}`;
+  const fileName = `${folderName}.md`;
+
+  return `# Padrão de documentação por User Story
+
+## Artefato definido
+- **User Story:** ${storyId} — ${storyTitle}
+- **Pasta:** \`qa-artifacts/manual-tests/${folderName}/\`
+- **Arquivo único:** \`${fileName}\`
+- **Título obrigatório:** \`# [${storyId}] ${storyTitle}\`
+
+## Estrutura obrigatória
+
+\`\`\`markdown
+# [${storyId}] ${storyTitle}
+
+## Objetivo do teste
+Descrever o comportamento que a User Story deve comprovar.
+
+- **História:** ${storyId}
+- **Data:** YYYY-MM-DD
+- **Ambiente:** staging
+- **Status:** Aprovado | Reprovado | Bloqueado
+
+## Pré-condições
+...
+
+## Caso de teste
+### Cenário principal
+...
+
+### Passos e resultados
+1. **Ação:** ...
+   **Resultado esperado:** ...
+   **Resultado obtido:** ...
+
+## Bugs encontrados
+### BUG-01 — Título do defeito
+- **Severidade:** Alta | Média | Baixa
+- **Status:** Aberto | Corrigido | Validado
+- **Passos para reproduzir:** ...
+- **Resultado esperado:** ...
+- **Resultado obtido:** ...
+
+## Ajustes encontrados
+### AJU-01 — Título do ajuste
+- **Prioridade:** Alta | Média | Baixa
+- **Status:** Aberto | Aplicado | Validado
+- **Descrição:** ...
+
+## Evidências
+- \`qa-artifacts/manual-tests/${folderName}/evidencias/screenshot-01.png\`
+\`\`\`
+
+## Regras
+
+1. Crie a pasta da User Story antes do documento.
+2. Crie apenas um arquivo Markdown por User Story.
+3. Registre o caso de teste, todos os bugs e todos os ajustes no mesmo arquivo.
+4. Use slug minúsculo, sem acentos e com hífens.
+5. Mantenha evidências na subpasta \`evidencias/\` da própria User Story.
+6. Procure as User Stories existentes antes de escolher o próximo ID.`;
+}
+
 // ─── List tools ───────────────────────────────────────────────────────────────
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
@@ -2248,6 +2691,94 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
         required: ["artifact_type"],
       },
     },
+    {
+      name: "generate_test_data",
+      description:
+        "Gera estratégia e exemplos de dados de teste sintéticos: válidos, inválidos, boundary, ausentes, caracteres especiais, duplicados e PII mascarada, com ferramentas recomendadas por stack.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          fields: { type: "string", description: "Campos/entidade a gerar (ex.: 'nome, email, cpf, data_nascimento')." },
+          domain: { type: "string", description: "Domínio de negócio (ex.: 'e-commerce', 'saúde', 'financeiro')." },
+          format: { type: "string", enum: ["JSON", "CSV", "SQL"], description: "Formato de saída. Padrão: JSON." },
+          count: { type: "string", description: "Quantidade de registros por categoria. Padrão: 10." },
+          constraints: { type: "string", description: "Restrições de negócio ou regex/validações específicas." },
+        },
+        required: ["fields"],
+      },
+    },
+    {
+      name: "design_api_tests",
+      description:
+        "Projeta suíte de testes funcionais, negativos e de segurança (OWASP API Top 10) para um endpoint específico, incluindo BOLA, mass assignment, rate limiting e estrutura de código de exemplo.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          endpoint: { type: "string", description: "Path do endpoint (ex.: '/api/v1/orders/:id')." },
+          method: { type: "string", enum: ["GET", "POST", "PUT", "PATCH", "DELETE"], description: "Método HTTP. Padrão: GET." },
+          auth_type: { type: "string", description: "Tipo de autenticação (ex.: 'Bearer JWT', 'API Key', 'OAuth2')." },
+          request_schema: { type: "string", description: "Schema/exemplo do payload de request, se houver." },
+          api_style: { type: "string", enum: ["REST", "GraphQL", "gRPC"], description: "Estilo da API. Padrão: REST." },
+        },
+        required: ["endpoint"],
+      },
+    },
+    {
+      name: "generate_automation_code",
+      description:
+        "Gera scaffold de código de automação (estrutura, boas práticas, seletores resilientes, waits por condição) para um cenário de teste em um framework específico.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          scenario: { type: "string", description: "Descrição do cenário a automatizar." },
+          framework: { type: "string", description: "Framework (ex.: 'Playwright', 'Cypress', 'Pytest', 'REST Assured'). Padrão: Playwright." },
+          language: { type: "string", description: "Linguagem. Padrão: TypeScript." },
+          layer: { type: "string", enum: ["unit", "api", "integration", "e2e"], description: "Camada de teste. Padrão: e2e." },
+        },
+        required: ["scenario"],
+      },
+    },
+    {
+      name: "optimize_test_suite",
+      description:
+        "Analisa uma suíte de testes existente e retorna matriz de decisão (manter/mesclar/mover de camada/remover/quarentena), heurísticas de redundância e plano de priorização por risco.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          suite_description: { type: "string", description: "Descrição da suíte: quantidade, tipos, nomes/tags dos testes." },
+          metrics: { type: "string", description: "Métricas conhecidas: duração, taxa de flaky, cobertura." },
+          goal: { type: "string", description: "Objetivo da otimização (ex.: 'reduzir tempo de CI de 40min para 15min')." },
+        },
+        required: ["suite_description"],
+      },
+    },
+    {
+      name: "self_healing_test_strategy",
+      description:
+        "Define estratégia de automação resiliente a mudanças de UI: hierarquia de seletores, fallback chain, detecção de drift e ferramentas de self-healing comerciais.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          framework: { type: "string", description: "Framework de automação. Padrão: Playwright." },
+          current_locator_strategy: { type: "string", description: "Estratégia de seletores usada atualmente." },
+          failure_pattern: { type: "string", description: "Padrão de falha observado (ex.: 'quebra após todo deploy de UI')." },
+        },
+        required: [],
+      },
+    },
+    {
+      name: "manual_test_artifact_standard",
+      description:
+        "Define uma pasta e um único arquivo Markdown por User Story, com seções internas para caso de teste, bugs, ajustes e evidências.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          story_id: { type: "string", description: "ID da User Story. Ex.: US-001." },
+          story_title: { type: "string", description: "Título legível da User Story; será usado no título, pasta e nome do arquivo." },
+        },
+        required: ["story_title"],
+      },
+    },
   ],
 }));
 
@@ -2265,6 +2796,12 @@ const TOOL_MAP = new Map<string, (a: Record<string, unknown>) => string>([
   ["troubleshoot_flaky_test", troubleshootFlakyTest],
   ["generate_ci_pipeline", generateCiPipeline],
   ["quality_checklist", qualityChecklist],
+  ["generate_test_data", generateTestData],
+  ["design_api_tests", designApiTests],
+  ["generate_automation_code", generateAutomationCode],
+  ["optimize_test_suite", optimizeTestSuite],
+  ["self_healing_test_strategy", selfHealingTestStrategy],
+  ["manual_test_artifact_standard", manualTestArtifactStandard],
 ]);
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -2638,6 +3175,14 @@ server.setRequestHandler(ListPromptsRequestSchema, async () => ({
         { name: "context", description: "Logs, stack trace, ambiente", required: false },
       ],
     },
+    {
+      name: "autonomous-qa-agent",
+      description: "Orquestra as ferramentas do MCP em sequência para levar uma feature do zero até pipeline pronto: história → estratégia → dados → API → automação → CI.",
+      arguments: [
+        { name: "feature", description: "Feature ou sistema a ser coberto por QA de ponta a ponta", required: true },
+        { name: "tech_stack", description: "Stack tecnológica", required: false },
+      ],
+    },
   ],
 }));
 
@@ -2712,6 +3257,29 @@ Siga o processo:
 
 Use \`troubleshoot_flaky_test\` se a falha for intermitente.`,
     },
+    "autonomous-qa-agent": {
+      description: "Agente QA autônomo — orquestra o ciclo completo de qualidade para uma feature",
+      text: `Atue como QA Engineer SDET Senior atuando como agente autônomo de qualidade. Conduza a feature abaixo por todo o ciclo de QA, encadeando as ferramentas do MCP e usando a saída de cada etapa como entrada da próxima.
+
+Feature:
+${str(args.feature) || "(não fornecida)"}
+
+${str(args.tech_stack) ? `Stack: ${str(args.tech_stack)}\n` : ""}
+Execute nesta ordem, adaptando ou pulando etapas que não se apliquem:
+
+1. \`analyze_user_story\` — decomponha a feature, extraia critérios de aceitação e mapa de riscos
+2. \`generate_test_strategy\` — defina a pirâmide de testes e ferramentas adequadas ao risco identificado
+3. \`create_gherkin_scenarios\` — converta os critérios em cenários BDD (happy path, negativos, edge cases)
+4. \`generate_test_data\` — gere os dados necessários para os cenários (válidos, inválidos, boundary, PII mascarada)
+5. \`design_api_tests\` e/ou \`design_contract_tests\` — se a feature expõe/consome API
+6. \`security_test_checklist\` — aplique o checklist OWASP adequado ao tipo de feature
+7. \`generate_automation_code\` — gere o scaffold de automação para os cenários priorizados
+8. \`self_healing_test_strategy\` — se a feature envolve UI, defina seletores resilientes
+9. \`generate_ci_pipeline\` — integre os testes gerados ao pipeline com gates de qualidade
+10. \`quality_checklist\` (artifact_type: test-suite) — valide a completude final antes de considerar pronto
+
+Ao final, apresente um resumo único com: riscos cobertos, lacunas conhecidas, artefatos gerados e próximos passos recomendados. Não invente dados, endpoints ou comportamento não informado — marque como hipótese e pergunte antes de assumir.`,
+    },
   };
 
   if (!Object.hasOwn(prompts, name)) throw new Error(`Prompt não encontrado: ${name}`);
@@ -2728,7 +3296,7 @@ Use \`troubleshoot_flaky_test\` se a falha for intermitente.`,
 async function main(): Promise<void> {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  process.stderr.write("MCP QA SDET Server v2.0.0 pronto.\n");
+  process.stderr.write("MCP QA SDET Server v2.1.0 pronto.\n");
 }
 
 main().catch((err) => {

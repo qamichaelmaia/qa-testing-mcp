@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "qa-sdet": {
+      "command": "node",
+      "args": ["./dist/index.js"]
+    }
+  }
+}
