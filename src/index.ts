@@ -14,7 +14,7 @@ import {
 // ─── Server ───────────────────────────────────────────────────────────────────
 
 const server = new Server(
-  { name: "mcp-qa-sdet", version: "2.1.0" },
+  { name: "mcp-qa-sdet", version: "2.2.1" },
   { capabilities: { tools: {}, resources: {}, prompts: {} } }
 );
 
@@ -1901,10 +1901,13 @@ function qualityChecklist(args: Record<string, unknown>): string {
       title: "Caso de Teste",
       items: [
         ["ID único e requisito/critério vinculado", "Crítico"],
+        ["Título e objetivo descrevem o comportamento em linguagem de negócio", "Crítico"],
         ["Pré-condições completas e não ambíguas", "Alto"],
         ["Dados de entrada específicos (não 'dados válidos')", "Crítico"],
-        ["Passos numerados e executáveis por qualquer membro do time", "Alto"],
-        ["Resultado esperado verificável objetivamente", "Crítico"],
+        ["Passos numerados, curtos e executáveis por Dev, QA ou PO", "Alto"],
+        ["Nomes visíveis na interface são preferidos a seletores, métodos ou componentes internos", "Alto"],
+        ["Resultado esperado observável e verificável objetivamente", "Crítico"],
+        ["Termos técnicos indispensáveis são explicados em linguagem simples", "Alto"],
         ["Cleanup/teardown documentado", "Médio"],
         ["Prioridade e criticidade atribuídas", "Médio"],
         ["Cenários negativos e edge cases cobertos", "Alto"],
@@ -1968,12 +1971,17 @@ function qualityChecklist(args: Record<string, unknown>): string {
     "bug-report": {
       title: "Bug Report",
       items: [
-        ["Título descritivo: [Componente] Comportamento errado quando condição", "Alto"],
-        ["Passos para reproduzir numerados e mínimos", "Crítico"],
-        ["Comportamento esperado explicitado", "Crítico"],
-        ["Comportamento atual explicitado", "Crítico"],
+        ["Título descreve o problema percebido pelo usuário, sem causa técnica presumida", "Alto"],
+        ["Descrição explica quando ocorre e o que o usuário fica impedido ou dificultado de fazer", "Crítico"],
+        ["Pré-condições apresentam apenas o estado necessário para iniciar", "Alto"],
+        ["Passos para reprodução são numerados, mínimos e usam nomes visíveis na interface", "Crítico"],
+        ["Resultado esperado descreve o comportamento correto de forma observável", "Crítico"],
+        ["Resultado atual descreve o que foi observado sem diagnosticar causa não comprovada", "Crítico"],
+        ["Impacto para usuário ou negócio está explícito em linguagem simples", "Alto"],
+        ["Texto principal pode ser compreendido por Dev, QA e PO", "Crítico"],
         ["Ambiente: OS, browser, versão, ambiente (prod/staging)", "Alto"],
-        ["Evidências: screenshot, vídeo, log de erro, stack trace", "Alto"],
+        ["Evidências funcionais: screenshot ou vídeo quando aplicável", "Alto"],
+        ["Detalhes técnicos ficam em seção opcional separada e não substituem a descrição funcional", "Alto"],
         ["Frequência: sempre, intermitente, uma vez", "Médio"],
         ["Impacto no usuário quantificado", "Médio"],
         ["Severidade e prioridade atribuídas com justificativa", "Médio"],
@@ -2437,7 +2445,7 @@ function manualTestArtifactStandard(args: Record<string, unknown>): string {
 # [${storyId}] ${storyTitle}
 
 ## Objetivo do teste
-Descrever o comportamento que a User Story deve comprovar.
+Explicar, em uma frase simples, o comportamento que a User Story deve comprovar e o valor para o usuário.
 
 - **História:** ${storyId}
 - **Data:** YYYY-MM-DD
@@ -2445,30 +2453,88 @@ Descrever o comportamento que a User Story deve comprovar.
 - **Status:** Aprovado | Reprovado | Bloqueado
 
 ## Pré-condições
-...
+- Usuário autenticado com a permissão necessária.
+- Tela ou fluxo inicial aberto.
+- Dados indispensáveis disponíveis.
 
-## Caso de teste
-### Cenário principal
-...
+## Casos de teste
+### CT-01 — Título orientado ao comportamento
 
-### Passos e resultados
-1. **Ação:** ...
-   **Resultado esperado:** ...
-   **Resultado obtido:** ...
+**Objetivo:**
+Explicar o que será validado e por que isso importa para o usuário ou para o negócio.
+
+**Pré-condições:**
+- Informar somente o estado necessário para iniciar o teste.
+
+**Dados de teste:**
+- Informar valores concretos quando forem relevantes.
+
+**Passos:**
+1. Descrever a ação usando os nomes exibidos na tela.
+2. Manter uma ação clara por passo.
+
+**Resultado esperado:**
+Descrever o que o usuário deve visualizar ou conseguir fazer.
+
+**Resultado obtido:**
+Descrever o comportamento observado durante a execução.
+
+**Status:** Aprovado | Reprovado | Bloqueado
 
 ## Bugs encontrados
-### BUG-01 — Título do defeito
+### BUG-01 — Título curto com o problema percebido pelo usuário
+
+**Título:** Descrever o que não funciona e em qual situação, sem presumir a causa técnica.
+
+**Descrição:**
+Explicar quando o problema acontece, o comportamento observado e o que ele impede ou dificulta. Usar linguagem compreensível para Dev, QA e PO.
+
+**Pré-condições:**
+- Informar apenas as condições necessárias para reproduzir o problema.
+
+**Passos para reprodução:**
+1. Usar os textos e nomes exibidos na interface.
+2. Informar dados concretos quando ajudarem na reprodução.
+3. Manter os passos curtos e em ordem.
+
+**Resultado atual:**
+Descrever exatamente o que acontece, sem misturar com o resultado esperado e sem afirmar uma causa não comprovada.
+
+**Resultado esperado:**
+Descrever como o produto deveria se comportar do ponto de vista do usuário.
+
+**Impacto:**
+Explicar quem é afetado, qual tarefa fica impedida ou mais difícil e se existe risco para o negócio.
+
 - **Severidade:** Alta | Média | Baixa
 - **Status:** Aberto | Corrigido | Validado
-- **Passos para reproduzir:** ...
-- **Resultado esperado:** ...
-- **Resultado obtido:** ...
+- **Frequência:** Sempre | Intermitente | Ocorreu uma vez
+- **Solução alternativa:** Informar somente se existir
+
+**Evidências:**
+- Screenshot ou vídeo que mostre o problema.
+
+<details>
+<summary>Detalhes técnicos (opcional)</summary>
+
+- Endpoint, request/response, mensagem de console ou log relevante.
+- Seletor, nome interno do componente ou hipótese de causa, claramente identificada como hipótese.
+
+</details>
 
 ## Ajustes encontrados
 ### AJU-01 — Título do ajuste
+
+**Título do ajuste:** Descrever a melhoria ou correção de forma clara, em linguagem compreensível para Dev, QA e PO.
+
+**Actual scenario:**
+Descrever o comportamento atual observado, do ponto de vista do usuário.
+
+**Expected scenario:**
+Descrever o comportamento desejado após o ajuste.
+
 - **Prioridade:** Alta | Média | Baixa
 - **Status:** Aberto | Aplicado | Validado
-- **Descrição:** ...
 
 ## Evidências
 - \`qa-artifacts/manual-tests/${folderName}/evidencias/screenshot-01.png\`
@@ -2481,7 +2547,14 @@ Descrever o comportamento que a User Story deve comprovar.
 3. Registre o caso de teste, todos os bugs e todos os ajustes no mesmo arquivo.
 4. Use slug minúsculo, sem acentos e com hífens.
 5. Mantenha evidências na subpasta \`evidencias/\` da própria User Story.
-6. Procure as User Stories existentes antes de escolher o próximo ID.`;
+6. Procure as User Stories existentes antes de escolher o próximo ID.
+7. Escreva primeiro para Dev, QA e PO: prefira comportamento, ação do usuário e impacto no negócio.
+8. Use os rótulos visíveis na tela; evite nomes de classes, componentes, seletores, payloads e atributos HTML no texto principal.
+9. Quando um termo técnico for indispensável, explique-o brevemente ou mova-o para **Detalhes técnicos (opcional)**.
+10. Não presuma a causa do defeito. Diferencie comportamento observado de hipótese técnica.
+11. Não use termos vagos como "não funciona", "está errado" ou "erro na API" sem explicar o que foi observado.
+12. Um leitor que não conhece a implementação deve conseguir reproduzir o teste ou bug apenas com o texto principal.
+13. Cada ajuste deve ter **Título do ajuste**, **Actual scenario** e **Expected scenario**. Não substitua esses campos por uma descrição genérica.`;
 }
 
 // ─── List tools ───────────────────────────────────────────────────────────────
@@ -2769,7 +2842,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => ({
     {
       name: "manual_test_artifact_standard",
       description:
-        "Define uma pasta e um único arquivo Markdown por User Story, com seções internas para caso de teste, bugs, ajustes e evidências.",
+        "Define uma pasta e um único arquivo Markdown por User Story, com casos de teste e bugs em linguagem funcional compreensível para Dev, QA e PO; detalhes técnicos ficam em seção opcional separada.",
       inputSchema: {
         type: "object",
         properties: {

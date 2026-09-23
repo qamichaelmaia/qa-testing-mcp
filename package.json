@@ -1,6 +1,6 @@
 {
   "name": "mcp-qa-sdet",
-  "version": "2.1.0",
+  "version": "2.2.1",
   "description": "MCP Server — QA Engineer SDET Senior. Análise de histórias, estratégia de testes, BDD/Gherkin, contrato (Pact), integração, performance (k6), segurança (OWASP), CI/CD e revisão de testes.",
   "type": "module",
   "main": "dist/index.js",
